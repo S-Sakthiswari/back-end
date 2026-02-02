@@ -27,18 +27,24 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: [
+      "http://localhost:3000",
+      "https://vermillion-zabaione-b5b933.netlify.app"
+    ],
     credentials: true
   }
 });
 
+
 // Middleware
 app.use(cors({
   origin: [
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "https://vermillion-zabaione-b5b933.netlify.app"
   ],
   credentials: true
 }));
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
