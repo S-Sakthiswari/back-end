@@ -1,4 +1,4 @@
-// server.js - COMPLETE FILE (NO CHANGES NEEDED - ALREADY CORRECT)
+// server.js - Complete Billing System with Inventory Management
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -15,10 +15,10 @@ const customerRoutes = require('./routes/customerRoutes');
 const discountRoutes = require('./routes/discountRoutes');
 const couponRoutes = require('./routes/couponRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
-const taxRoutes = require('./routes/taxRoutes');  // ✅ ALREADY REGISTERED
+const taxRoutes = require('./routes/taxRoutes');
 const coinRoutes = require('./routes/coinRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
-const whatsappRoutes = require('./routes/Whatsapp');
+const whatsappRoutes = require('./routes/whatsapp');
 const ordersRoutes = require('./routes/orders');
 const billsRoutes = require('./routes/bills');
 const notificationRoutes = require('./routes/notifications');
@@ -27,27 +27,26 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      "https://vermillion-zabaione-b5b933.netlify.app"
-    ],
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
     credentials: true
   }
 });
 
+// ============================================
+// MIDDLEWARE
+// ============================================
 
-// Middleware
+// CORS Configuration
 app.use(cors({
   origin: [
-    "http://localhost:3000",
-    "https://vermillion-zabaione-b5b933.netlify.app"
+    process.env.CLIENT_URL || "http://localhost:3000"
   ],
   credentials: true
 }));
 
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body Parser Middleware
+app.use(express.json({ limit: '10mb' })); // For base64 images
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make io accessible to routes
 app.use((req, res, next) => {
@@ -55,22 +54,44 @@ app.use((req, res, next) => {
   next();
 });
 
+// Request Logger (Development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path}`);
+    next();
+  });
+}
+
+// ============================================
+// MONGODB CONNECTION
+// ============================================
+
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/billing-system';
+
 mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/billing-system', {
-    serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
-    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-    family: 4 // Use IPv4, skip trying IPv6
+  .connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    family: 4
   })
   .then(async () => {
-    console.log('✅ MongoDB connected');
-
-    // Auto-create default users if they don't exist
+    console.log('✅ MongoDB Connected Successfully');
+    console.log(`📊 Database: ${mongoose.connection.name}`);
     await createDefaultUsers();
   })
   .catch(err => {
-    console.error('❌ MongoDB connection failed:', err.message);
+    console.error('❌ MongoDB Connection Error:', err.message);
     process.exit(1);
   });
+
+// MongoDB connection event handlers
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ MongoDB Disconnected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB Error:', err);
+});
 
 // ============================================================================
 // AUTO-CREATE DEFAULT USERS FUNCTION
@@ -81,7 +102,6 @@ async function createDefaultUsers() {
 
     console.log('🔍 Checking for existing users...');
 
-    // Check total user count
     const totalUsers = await User.countDocuments();
     console.log(`Total users in database: ${totalUsers}`);
 
@@ -121,7 +141,6 @@ async function createDefaultUsers() {
       console.log('ℹ️  Staff user already exists (ID:', staffExists._id + ')');
     }
 
-    // Verify final count
     const finalCount = await User.countDocuments();
     console.log(`\n✅ User setup complete. Total users: ${finalCount}`);
 
@@ -131,22 +150,66 @@ async function createDefaultUsers() {
   }
 }
 
+// ============================================
+// ROUTES
+// ============================================
+
 // Base route
 app.get('/', (req, res) => {
   res.json({
-    message: 'Backend is running',
+    message: 'Billing & Inventory Management System API',
     version: '2.0.0',
-    features: ['Customer Management', 'Coin Wallet System', 'Transaction History', 'Invoice System', 'Real-time Notifications'],
+    features: [
+      'Customer Management',
+      'Product Inventory',
+      'Coin Wallet System',
+      'Transaction History',
+      'Invoice System',
+      'Real-time Notifications',
+      'Stock Management',
+      'Sales Analytics',
+      'Discount & Coupon Management',
+      'Expense Tracking',
+      'Tax Configuration',
+      'WhatsApp Integration',
+      'Order Management'
+    ],
     endpoints: {
       auth: '/api/auth',
       products: '/api/products',
       customers: '/api/customers',
+      invoices: '/api/invoices',
       notifications: '/api/notifications',
       sales: '/api/sales',
-      analytics: '/api/analytics'
+      analytics: '/api/analytics',
+      tax: '/api/tax',
+      discounts: '/api/discounts',
+      coupons: '/api/coupons',
+      expenses: '/api/expenses',
+      coins: '/api/coins',
+      transactions: '/api/transactions',
+      whatsapp: '/api/whatsapp',
+      orders: '/api/orders',
+      bills: '/api/bills'
     }
   });
 });
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Server is healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    version: '2.0.0'
+  });
+});
+
+// ============================================================================
+// REGISTER ALL ROUTES
+// ============================================================================
 
 // Core routes
 app.use('/api/auth', authRoutes);
@@ -155,7 +218,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/expenses', expenseRoutes);
-app.use('/api/tax', taxRoutes);  // ✅ TAX ROUTES ALREADY REGISTERED - NO CHANGES NEEDED
+app.use('/api/tax', taxRoutes);
 app.use('/api/coins', coinRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
@@ -163,7 +226,22 @@ app.use('/api/orders', ordersRoutes);
 app.use('/api/bills', billsRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// Load other routes safely
+console.log('✅ Core routes registered:');
+console.log('   - /api/auth');
+console.log('   - /api/products');
+console.log('   - /api/customers');
+console.log('   - /api/discounts');
+console.log('   - /api/coupons');
+console.log('   - /api/expenses');
+console.log('   - /api/tax');
+console.log('   - /api/coins');
+console.log('   - /api/transactions');
+console.log('   - /api/whatsapp');
+console.log('   - /api/orders');
+console.log('   - /api/bills');
+console.log('   - /api/notifications');
+
+// Load optional routes safely
 const loadRoutes = (routePath, routeName) => {
   try {
     const routes = require(routePath);
@@ -173,15 +251,23 @@ const loadRoutes = (routePath, routeName) => {
     console.warn(`⚠️ ${routeName} routes not found:`, err.message);
     // Create placeholder route
     const router = express.Router();
-    router.get('/', (req, res) => res.json({ message: `${routeName} module not implemented` }));
+    router.get('/', (req, res) => res.json({ 
+      success: true,
+      message: `${routeName} module not implemented yet`,
+      info: 'This endpoint is available but functionality is pending'
+    }));
     app.use(`/api/${routeName}`, router);
   }
 };
 
-// Load optional routes
+// Load optional routes (these files may or may not exist)
 loadRoutes('./routes/invoice', 'invoices');
 loadRoutes('./routes/sales', 'sales');
 loadRoutes('./routes/analytics', 'analytics');
+
+// ============================================================================
+// NOTIFICATION SYSTEM
+// ============================================================================
 
 // Import Notification model for socket events
 const Notification = require('./models/Notification');
@@ -210,7 +296,7 @@ async function upsertNotification(notificationData) {
     const query = {
       type,
       productId,
-      isRead: false // Only check unread notifications
+      isRead: false
     };
 
     // Check if a similar notification already exists
@@ -262,7 +348,9 @@ async function upsertNotification(notificationData) {
   }
 }
 
-// Socket.io events
+// ============================================================================
+// SOCKET.IO EVENTS - Real-time Communication
+// ============================================================================
 io.on('connection', (socket) => {
   console.log('🔌 New client connected:', socket.id);
 
@@ -358,25 +446,124 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle order updates
+  socket.on('order_created', (orderData) => {
+    io.emit('new_order', orderData);
+    console.log('📦 New order broadcast:', orderData.orderId);
+  });
+
+  // Handle payment updates
+  socket.on('payment_received', (paymentData) => {
+    io.emit('new_payment', paymentData);
+    console.log('💰 Payment received broadcast:', paymentData.transactionId);
+  });
+
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    console.log('❌ Client disconnected:', socket.id);
   });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+// 404 handler - must come after all routes
+app.use((req, res, next) => {
+  res.status(404).json({
     success: false,
-    error: 'Something went wrong!'
+    message: 'Route not found',
+    path: req.originalUrl,
+    availableEndpoints: {
+      base: '/',
+      health: '/api/health',
+      auth: '/api/auth',
+      products: '/api/products',
+      customers: '/api/customers',
+      notifications: '/api/notifications'
+    }
   });
 });
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV !== 'production' && { 
+      stack: err.stack,
+      error: err 
+    })
+  });
+});
+
+// ============================================
+// START SERVER
+// ============================================
 const PORT = process.env.PORT || 5000;
+
 server.listen(PORT, () => {
+  console.log('\n' + '='.repeat(70));
   console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Database: ${mongoose.connection.name}`);
   console.log(`🔔 Real-time Notifications: ws://localhost:${PORT}`);
   console.log(`📦 Stock Monitoring: http://localhost:${PORT}/api/notifications/check-stock`);
+  console.log(`📄 Invoice System: http://localhost:${PORT}/api/invoices`);
+  console.log(`💚 Health Check: http://localhost:${PORT}/api/health`);
   console.log(`✅ Duplicate notification prevention: ACTIVE`);
-  console.log(`👤 Default users will be created if they don't exist`);
+  console.log(`👤 Default users auto-created on startup`);
+  console.log('='.repeat(70) + '\n');
 });
+
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
+const gracefulShutdown = async (signal) => {
+  console.log(`\n⏳ ${signal} signal received: closing HTTP server`);
+  
+  server.close(async () => {
+    console.log('✅ HTTP server closed');
+    
+    try {
+      await mongoose.connection.close();
+      console.log('✅ MongoDB connection closed');
+      process.exit(0);
+    } catch (err) {
+      console.error('❌ Error closing MongoDB connection:', err);
+      process.exit(1);
+    }
+  });
+  
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error('⚠️ Forcing shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', async (err) => {
+  console.error('❌ Unhandled Promise Rejection:', err);
+  
+  server.close(async () => {
+    try {
+      await mongoose.connection.close();
+      console.log('✅ MongoDB connection closed');
+    } catch (closeErr) {
+      console.error('❌ Error closing MongoDB:', closeErr);
+    }
+    process.exit(1);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
+});
+
+module.exports = { app, server, io };
