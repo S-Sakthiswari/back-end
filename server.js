@@ -8,20 +8,40 @@ const socketIo = require('socket.io');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// Import routes
-const authRoutes = require('./routes/auth');
-const productRoutes = require('./routes/productRoutes');
-const customerRoutes = require('./routes/customerRoutes');
-const discountRoutes = require('./routes/discountRoutes');
-const couponRoutes = require('./routes/couponRoutes');
-const expenseRoutes = require('./routes/expenseRoutes');
-const taxRoutes = require('./routes/taxRoutes');
-const coinRoutes = require('./routes/coinRoutes');
-const transactionRoutes = require('./routes/transactionRoutes');
-const whatsappRoutes = require('./routes/whatsapp');
-const ordersRoutes = require('./routes/orders');
-const billsRoutes = require('./routes/bills');
-const notificationRoutes = require('./routes/notifications');
+// ============================================
+// DYNAMIC ROUTE LOADING - Safe import that won't crash if routes are missing
+// ============================================
+const loadRoute = (path, name) => {
+  try {
+    return require(path);
+  } catch (err) {
+    console.warn(`⚠️ ${name} route file not found, using placeholder`);
+    const router = require('express').Router();
+    router.all('*', (req, res) => {
+      res.status(501).json({
+        success: false,
+        message: `${name} module not implemented yet`,
+        info: 'This route file needs to be created'
+      });
+    });
+    return router;
+  }
+};
+
+// Load routes safely
+const authRoutes = loadRoute('./routes/auth', 'Auth');
+const productRoutes = loadRoute('./routes/productRoutes', 'Product');
+const customerRoutes = loadRoute('./routes/customerRoutes', 'Customer');
+const discountRoutes = loadRoute('./routes/discountRoutes', 'Discount');
+const couponRoutes = loadRoute('./routes/couponRoutes', 'Coupon');
+const expenseRoutes = loadRoute('./routes/expenseRoutes', 'Expense');
+const taxRoutes = loadRoute('./routes/taxRoutes', 'Tax');
+const coinRoutes = loadRoute('./routes/coinRoutes', 'Coin');
+const transactionRoutes = loadRoute('./routes/transactionRoutes', 'Transaction');
+const whatsappRoutes = loadRoute('./routes/whatsapp', 'WhatsApp');
+const ordersRoutes = loadRoute('./routes/orders', 'Orders');
+const billsRoutes = loadRoute('./routes/bills', 'Bills');
+const notificationRoutes = loadRoute('./routes/notifications', 'Notification');
 
 const app = express();
 const server = http.createServer(app);
@@ -98,7 +118,15 @@ mongoose.connection.on('error', (err) => {
 // ============================================================================
 async function createDefaultUsers() {
   try {
-    const User = require('./models/User');
+    // Try to load User model
+    let User;
+    try {
+      User = require('./models/User');
+    } catch (err) {
+      console.warn('⚠️ User model not found, skipping user creation');
+      console.warn('   Create ./models/User.js to enable authentication');
+      return;
+    }
 
     console.log('🔍 Checking for existing users...');
 
@@ -269,13 +297,24 @@ loadRoutes('./routes/analytics', 'analytics');
 // NOTIFICATION SYSTEM
 // ============================================================================
 
-// Import Notification model for socket events
-const Notification = require('./models/Notification');
+// Import Notification model for socket events (if it exists)
+let Notification;
+try {
+  Notification = require('./models/Notification');
+} catch (err) {
+  console.warn('⚠️ Notification model not found, notifications disabled');
+  console.warn('   Create ./models/Notification.js to enable notifications');
+}
 
 // ============================================================================
 // UPSERT NOTIFICATION FUNCTION - Prevents Duplicate Notifications
 // ============================================================================
 async function upsertNotification(notificationData) {
+  if (!Notification) {
+    console.warn('⚠️ Notification model not available, skipping notification');
+    return { notification: null, isNew: false };
+  }
+  
   try {
     const {
       type,
@@ -415,6 +454,7 @@ io.on('connection', (socket) => {
 
   // Handle marking notifications as read
   socket.on('mark_notification_read', async (notificationId) => {
+    if (!Notification) return;
     try {
       await Notification.findByIdAndUpdate(notificationId, { isRead: true });
       io.emit('notification_read', { id: notificationId });
@@ -426,6 +466,7 @@ io.on('connection', (socket) => {
 
   // Handle marking all notifications as read
   socket.on('mark_all_read', async () => {
+    if (!Notification) return;
     try {
       await Notification.updateMany({ isRead: false }, { isRead: true });
       io.emit('all_notifications_read');
@@ -437,6 +478,7 @@ io.on('connection', (socket) => {
 
   // Handle deleting a notification
   socket.on('delete_notification', async (notificationId) => {
+    if (!Notification) return;
     try {
       await Notification.findByIdAndDelete(notificationId);
       io.emit('notification_deleted', { id: notificationId });
