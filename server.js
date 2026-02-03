@@ -8,41 +8,6 @@ const socketIo = require('socket.io');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// ============================================
-// DYNAMIC ROUTE LOADING - Safe import that won't crash if routes are missing
-// ============================================
-const loadRoute = (path, name) => {
-  try {
-    return require(path);
-  } catch (err) {
-    console.warn(`⚠️ ${name} route file not found, using placeholder`);
-    const router = require('express').Router();
-    router.all('*', (req, res) => {
-      res.status(501).json({
-        success: false,
-        message: `${name} module not implemented yet`,
-        info: 'This route file needs to be created'
-      });
-    });
-    return router;
-  }
-};
-
-// Load routes safely
-const authRoutes = loadRoute('./routes/auth', 'Auth');
-const productRoutes = loadRoute('./routes/productRoutes', 'Product');
-const customerRoutes = loadRoute('./routes/customerRoutes', 'Customer');
-const discountRoutes = loadRoute('./routes/discountRoutes', 'Discount');
-const couponRoutes = loadRoute('./routes/couponRoutes', 'Coupon');
-const expenseRoutes = loadRoute('./routes/expenseRoutes', 'Expense');
-const taxRoutes = loadRoute('./routes/taxRoutes', 'Tax');
-const coinRoutes = loadRoute('./routes/coinRoutes', 'Coin');
-const transactionRoutes = loadRoute('./routes/transactionRoutes', 'Transaction');
-const whatsappRoutes = loadRoute('./routes/whatsapp', 'WhatsApp');
-const ordersRoutes = loadRoute('./routes/orders', 'Orders');
-const billsRoutes = loadRoute('./routes/bills', 'Bills');
-const notificationRoutes = loadRoute('./routes/notifications', 'Notification');
-
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -236,62 +201,80 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================================================
-// REGISTER ALL ROUTES
+// DYNAMIC ROUTE LOADING FUNCTION
 // ============================================================================
-
-// Core routes
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api/discounts', discountRoutes);
-app.use('/api/coupons', couponRoutes);
-app.use('/api/expenses', expenseRoutes);
-app.use('/api/tax', taxRoutes);
-app.use('/api/coins', coinRoutes);
-app.use('/api/transactions', transactionRoutes);
-app.use('/api/whatsapp', whatsappRoutes);
-app.use('/api/orders', ordersRoutes);
-app.use('/api/bills', billsRoutes);
-app.use('/api/notifications', notificationRoutes);
-
-console.log('✅ Core routes registered:');
-console.log('   - /api/auth');
-console.log('   - /api/products');
-console.log('   - /api/customers');
-console.log('   - /api/discounts');
-console.log('   - /api/coupons');
-console.log('   - /api/expenses');
-console.log('   - /api/tax');
-console.log('   - /api/coins');
-console.log('   - /api/transactions');
-console.log('   - /api/whatsapp');
-console.log('   - /api/orders');
-console.log('   - /api/bills');
-console.log('   - /api/notifications');
-
-// Load optional routes safely
-const loadRoutes = (routePath, routeName) => {
+const loadAndUseRoute = (routePath, apiPath, routeName) => {
   try {
-    const routes = require(routePath);
-    app.use(`/api/${routeName}`, routes);
+    const route = require(routePath);
+    app.use(apiPath, route);
     console.log(`✅ ${routeName} routes loaded`);
   } catch (err) {
-    console.warn(`⚠️ ${routeName} routes not found:`, err.message);
-    // Create placeholder route
+    console.warn(`⚠️ ${routeName} routes not found, using placeholder`);
+    
     const router = express.Router();
-    router.get('/', (req, res) => res.json({ 
-      success: true,
-      message: `${routeName} module not implemented yet`,
-      info: 'This endpoint is available but functionality is pending'
-    }));
-    app.use(`/api/${routeName}`, router);
+    router.get('/', (req, res) => {
+      res.status(501).json({
+        success: false,
+        message: `${routeName} module not implemented yet`,
+        info: 'This route file needs to be created'
+      });
+    });
+    
+    router.post('/', (req, res) => {
+      res.status(501).json({
+        success: false,
+        message: `${routeName} module not implemented yet`,
+        info: 'This route file needs to be created'
+      });
+    });
+    
+    router.put('/:id', (req, res) => {
+      res.status(501).json({
+        success: false,
+        message: `${routeName} module not implemented yet`,
+        info: 'This route file needs to be created'
+      });
+    });
+    
+    router.delete('/:id', (req, res) => {
+      res.status(501).json({
+        success: false,
+        message: `${routeName} module not implemented yet`,
+        info: 'This route file needs to be created'
+      });
+    });
+    
+    app.use(apiPath, router);
   }
 };
 
-// Load optional routes (these files may or may not exist)
-loadRoutes('./routes/invoice', 'invoices');
-loadRoutes('./routes/sales', 'sales');
-loadRoutes('./routes/analytics', 'analytics');
+// ============================================================================
+// REGISTER ALL ROUTES
+// ============================================================================
+
+console.log('\n📦 Loading routes...');
+
+// Core routes - load each one safely
+loadAndUseRoute('./routes/auth', '/api/auth', 'Auth');
+loadAndUseRoute('./routes/productRoutes', '/api/products', 'Product');
+loadAndUseRoute('./routes/customerRoutes', '/api/customers', 'Customer');
+loadAndUseRoute('./routes/discountRoutes', '/api/discounts', 'Discount');
+loadAndUseRoute('./routes/couponRoutes', '/api/coupons', 'Coupon');
+loadAndUseRoute('./routes/expenseRoutes', '/api/expenses', 'Expense');
+loadAndUseRoute('./routes/taxRoutes', '/api/tax', 'Tax');
+loadAndUseRoute('./routes/coinRoutes', '/api/coins', 'Coin');
+loadAndUseRoute('./routes/transactionRoutes', '/api/transactions', 'Transaction');
+loadAndUseRoute('./routes/whatsapp', '/api/whatsapp', 'WhatsApp');
+loadAndUseRoute('./routes/orders', '/api/orders', 'Orders');
+loadAndUseRoute('./routes/bills', '/api/bills', 'Bills');
+loadAndUseRoute('./routes/notifications', '/api/notifications', 'Notification');
+
+// Optional routes
+loadAndUseRoute('./routes/invoice', '/api/invoices', 'Invoice');
+loadAndUseRoute('./routes/sales', '/api/sales', 'Sales');
+loadAndUseRoute('./routes/analytics', '/api/analytics', 'Analytics');
+
+console.log('✅ Route loading complete\n');
 
 // ============================================================================
 // NOTIFICATION SYSTEM
